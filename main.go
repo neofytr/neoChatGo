@@ -20,8 +20,8 @@ func handleConnection(conn net.Conn) {
 		log.Printf("ERROR: could not write message to %s\n", conn.RemoteAddr())
 	}
 
-	if num <= len(message) {
-		log.Printf("ERROR: could not write the entire message '%s' to %s\n", message, conn.RemoteAddr())
+	if num < len(message) {
+		log.Printf("ERROR: could not write the entire message '%s' to %s, wrote %s\n", message, conn.RemoteAddr(), message[:num])
 	}
 	log.Printf("INFO: closed connection from: %s\n", conn.RemoteAddr())
 }
