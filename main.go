@@ -10,8 +10,12 @@ const serverPort = "6969"
 func handleConnection(conn net.Conn) {
 	message := "hi!\n"
 	num, err := conn.Write([]byte("hi!\n"))
-	if err != nil || num < len(message) {
+	if err != nil {
 		log.Printf("ERROR: could not write message to %s\n", conn.RemoteAddr())
+	}
+
+	if num <= len(message) {
+		log.Printf("ERROR: could not write the entire message '%s' to %s\n", conn.RemoteAddr())
 	}
 	conn.Close()
 	log.Printf("INFO: closed connection from: %s\n", conn.RemoteAddr())
