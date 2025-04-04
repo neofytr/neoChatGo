@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -11,58 +10,60 @@ import (
 
 const serverPort = "6969"
 
-func handleConnection(conn net.Conn) {
-	defer conn.Close()
-	message := "hi!\n"
-
-	num, err := conn.Write([]byte(message))
-	if err != nil {
-		log.Printf("ERROR: could not write message to %s\n", conn.RemoteAddr())
-	}
-
-	if num < len(message) {
-		log.Printf("ERROR: could not write the entire message '%s' to %s, wrote %s\n", message, conn.RemoteAddr(), message[:num])
-	}
-	log.Printf("INFO: closed connection from: %s\n", conn.RemoteAddr())
+func handleConnection(connection net.Conn) {
+	defer connection.Close()
 }
 
 func main() {
-	// setup a signal handler for termination signal (Ctrl+C)
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	// create Ctrl+C (SIGINT) signal handler to gracefully shut down the server upon termination
+	termSignal := make(chan os.Signal, 1)
+	signal.Notify(termSignal, syscall.SIGINT)
 
-	closeServer := make(chan struct{})
+	// channel to notify the thread accepting connections that server has been shut down
+	acceptNotify := make(chan bool)
 
-	handler, err := net.Listen("tcp", ":"+serverPort)
+	listener, err := net.Listen("tcp", ":"+serverPort)
 	if err != nil {
-		log.Fatalf("ERROR: could not listen to the port %s: %s\n", serverPort, err)
+		log.Fatalf("ERROR: TCP connection creation failed on port %s: %s\n", serverPort, err.Error())
 	}
 
-	log.Printf("INFO: started server on port: %s\n", serverPort)
+	defer func() {
+		log.Printf("INFO: closing the chat server\n")
+		err = listener.Close()
+		if err != nil {
+			log.Fatalf("ERROR: couldn't close the chat server: %s\n", err.Error())
+		}
+	}()
 
+	log.Printf("INFO: Chat Server started on port %s\n", serverPort)
 	go func() {
 		for {
-			conn, err := handler.Accept()
+			conn, err := listener.Accept()
 			if err != nil {
-				select {
-				case <-closeServer:
-					// server is shutting down
-					return
+				switch {
+				case <-acceptNotify:
+					{
+						log.Printf("INFO: server received SIGINT\n")
+						return
+					}
 				default:
-					log.Println("ERROR: couldn't accept a connection:", err)
-					continue
+					{
+						log.Printf("ERROR: couldn't accept a connection: %s", err.Error())
+						continue
+					}
 				}
+
 			}
-			log.Println("INFO: accepted connection from:", conn.RemoteAddr())
+
+			log.Printf("INFO: accepted connection from IP:Port -> %s\n", conn.RemoteAddr())
+
+			// handle each connection in a new goroutine
 			go handleConnection(conn)
 		}
 	}()
 
-	<-stop // wait for termination signal
+	<-termSignal // wait for the termination signal
 
-	// signal to the goroutine that we're shutting down
-	close(closeServer) // a channel will always be ready if it's closed
-
-	fmt.Println("Shutting down the TCP server on port:", serverPort)
-	handler.Close()
+	// termination signal is now received, signal the acceptor routine to exit
+	close(acceptNotify) // a closed channel is always ready
 }
