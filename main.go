@@ -14,6 +14,7 @@ func handleConnection(connection net.Conn) {
 	defer connection.Close()
 
 	message := "hi!\n"
+
 	num, err := connection.Write([]byte(message))
 	if err != nil {
 		log.Printf("ERROR: error writing message to the client IP:Port %s\n", connection.RemoteAddr())
@@ -22,55 +23,62 @@ func handleConnection(connection net.Conn) {
 		}
 		return
 	}
+
 }
 
 func main() {
-	// Create Ctrl+C (SIGINT) signal handler
+	// create Ctrl+C (SIGINT) signal handler to gracefully shut down the server upon termination
 	termSignal := make(chan os.Signal, 1)
 	signal.Notify(termSignal, syscall.SIGINT)
 
+	// channel to notify the thread accepting connections that server has been shut down
+	acceptNotify := make(chan bool)
+
 	listener, err := net.Listen("tcp", ":"+serverPort)
 	if err != nil {
-		log.Fatalf("ERROR: TCP connection creation failed on port %s: %s\n", serverPort, err.Error())
+		log.Fatalf("ERROR: tcp connection creation failed on port %s: %s\n", serverPort, err.Error())
 	}
 
 	defer func() {
-		log.Printf("INFO: closing the chat server\n")
-		err = listener.Close()
-		if err != nil {
-			log.Fatalf("ERROR: couldn't close the chat server: %s\n", err.Error())
-		}
+
 	}()
 
-	log.Printf("INFO: Chat Server started on port %s\n", serverPort)
-
-	// channel to stop accepting new connections
-	stop := make(chan struct{})
-
+	log.Printf("INFO: chat Server started on port %s\n", serverPort)
 	go func() {
 		for {
-			select {
-			case <-stop:
-				log.Println("INFO: Server shutting down, stopping accept loop")
-				return
-			default:
-				conn, err := listener.Accept()
-				if err != nil {
-					log.Printf("ERROR: couldn't accept a connection: %s", err.Error())
-					continue
+			conn, err := listener.Accept()
+			if err != nil {
+				select {
+				case <-acceptNotify:
+					{
+						return
+					}
+				default:
+					{
+						log.Printf("ERROR: couldn't accept a connection: %s", err.Error())
+						continue
+					}
 				}
 
-				log.Printf("INFO: accepted connection from IP:Port -> %s\n", conn.RemoteAddr())
-
-				go handleConnection(conn)
 			}
+
+			log.Printf("INFO: accepted connection from IP:Port -> %s\n", conn.RemoteAddr())
+
+			// handle each connection in a new goroutine
+			go handleConnection(conn)
 		}
 	}()
 
-	<-termSignal // wait for termination signal
+	<-termSignal // wait for the termination signal
 
-	// signal the acceptor routine to stop
-	close(stop)
+	log.Printf("INFO: chat server received termination signal")
+	log.Printf("INFO: closing the chat server\n")
 
-	log.Println("INFO: Server shutting down gracefully")
+	// termination signal is now received, signal the acceptor routine to exit when server is shutdown
+	close(acceptNotify)    // a closed channel is always ready
+	err = listener.Close() // this will cause the listener.Accept() to return an error
+	// and since the acceptNotify channel is now ready, it will cause the acceptor goroutine to exit
+	if err != nil {
+		log.Fatalf("ERROR: couldn't close the chat server: %s\n", err.Error())
+	}
 }
