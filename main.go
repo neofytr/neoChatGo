@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -27,6 +26,8 @@ func safeRead(buffer []byte, connection *net.Conn) int {
 	if err != nil {
 		log.Printf("ERROR: couldn't read message from the client IP:Port %s\n", safeRemoteAddress(*connection))
 	}
+
+	// buffer will contain \r\n at the end; so we remove it
 
 	return num
 }
@@ -55,18 +56,13 @@ func removeFeedNewline(message []byte) []byte {
 }
 
 func handleConnection(connection net.Conn, messageQueue [][]byte) {
-	defer connection.Close()
+	defer func() {
+		log.Printf("INFO: closing connection to the client IP:Port %s\n", safeRemoteAddress(connection))
+		connection.Close()
+	}()
 
-	message := "Hi!\nPlease type in your name!\n"
-	buffer := make([]byte, bufferLen)
-	safeWrite(&message, &connection)
-	safeRead(buffer, &connection)
-
-	// buffer will contain \r\n at the end; so we remove it
-	username := removeFeedNewline(buffer)
-	message = fmt.Sprintf("Welcome %s to the chat room!\n", username)
-	safeWrite(&message, &connection)
-
+	initMessage := "connected"
+	safeWrite(&initMessage, &connection)
 }
 
 func main() {
