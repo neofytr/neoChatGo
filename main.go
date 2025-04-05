@@ -74,13 +74,20 @@ func isMessageEqual(firstMessage, secondMessage []byte) bool {
 	*/
 }
 
-func handleConnection(connection net.Conn, messageQueue [][]byte) {
+func handleConnection(connection net.Conn, messageQueue []message_t) {
 	defer func() {
 		log.Printf("INFO: closing connection to the client IP:Port %s\n", safeRemoteAddress(&connection))
 		connection.Close()
 	}()
 
 	buffer := make([]byte, bufferLen)
+	nameLength := safeRead(buffer, &connection)
+	if nameLength == 0 {
+		log.Printf("INFO: client IP:Port %s closed connection\n", safeRemoteAddress(&connection))
+		return
+	}
+
+	name := string(buffer[:nameLength])
 
 	for {
 		num := safeRead(buffer, &connection) // returns zero if the client closed connection; otherwise returns the number of bytes read
@@ -88,6 +95,8 @@ func handleConnection(connection net.Conn, messageQueue [][]byte) {
 			log.Printf("INFO: client IP:Port %s closed connection\n", safeRemoteAddress(&connection))
 			return
 		}
+
+		messageQueue = append(messageQueue, message_t{sender: name, msg: string(buffer[:num])})
 	}
 }
 
@@ -104,7 +113,7 @@ func main() {
 		log.Fatalf("ERROR: tcp connection creation failed on port %s: %s\n", serverPort, err.Error())
 	}
 
-	messageQueue := make([][]byte, initQueueLen)
+	messageQueue := make([]message_te, initQueueLen)
 
 	log.Printf("INFO: chat server started on port %s\n", serverPort)
 	go func() {

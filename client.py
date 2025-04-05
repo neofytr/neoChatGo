@@ -14,12 +14,9 @@ def quitClient():
 
 print("Welcome to the chat room!")
 
-
 # the trailing newline in the input is stripped
 name = input("Please enter your name: ")
-
-quitClient()
-
+clientSocket.sendall(name.encode(encoding="utf-8"))
 
 # it is guaranteed that any message we receive from the server does not have any line feed or newline characters at its ends
 while True:
@@ -28,3 +25,5 @@ while True:
     
     reply = input()
     clientSocket.sendall(reply.encode(encoding="utf-8"))
+    
+    
