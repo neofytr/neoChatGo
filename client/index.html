@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beautiful Chat Client</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <link href="styles.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="logo">
+                <i class="fas fa-comment-dots"></i>
+                <h1>Chat App</h1>
+            </div>
+            <div class="connection-form">
+                <input type="text" id="name-input" placeholder="Your name" />
+                <button id="connect-btn" class="connect-btn">Connect</button>
+            </div>
+            <div class="connection-info">
+                <div class="status">
+                    <div class="status-indicator offline"></div>
+                    <span id="status-text">Disconnected</span>
+                </div>
+                <div class="server-info">
+                    <p>Server: 127.0.0.1:6969</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-container">
+            <div class="chat-header">
+                <h2>Chat Room</h2>
+            </div>
+
+            <div class="messages-container" id="messages">
+                <div class="welcome-message">
+                    <h3>Welcome to the Chat Room!</h3>
+                    <p>Enter your name and click "Connect" to join.</p>
+                </div>
+            </div>
+
+            <div class="input-container">
+                <input type="text" id="message-input" placeholder="Type a message..." disabled />
+                <button id="send-btn" disabled>
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>
