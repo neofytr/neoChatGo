@@ -18,7 +18,10 @@ else:
 
 # the trailing newline in the input is stripped
 name = input("Please enter your name: ")
+msg = "quit"
+clientSocket.sendall(msg.encode(encoding="utf-8"))
 
+# it is guaranteed that any message we receive from the server does not have any line feed or newline characters at its ends
 while True:
     message = clientSocket.recv(1024)
     print(message.decode(encoding="utf-8"), end="")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"log"
 	"net"
 	"os"
@@ -27,8 +28,7 @@ func safeRead(buffer []byte, connection *net.Conn) int {
 		log.Printf("ERROR: couldn't read message from the client IP:Port %s\n", safeRemoteAddress(*connection))
 	}
 
-	// buffer will contain \r\n at the end; so we remove it
-
+	// it is guaranteed that all the messages we receive (even if typed into the terminal) from the client does not have any feed or newline characters at its ends
 	return num
 }
 
@@ -43,30 +43,22 @@ func safeWrite(message *string, connection *net.Conn) {
 	}
 }
 
-func removeFeedNewline(message []byte) []byte {
-	modified := make([]byte, bufferLen)
-	for index, val := range message {
-		if val == 13 {
-			break
-		}
-		modified[index] = val
-	}
-
-	return modified
-}
-
 func isMessageEqual(firstMessage, secondMessage []byte) bool {
-	if len(firstMessage) != len(secondMessage) {
-		return false
-	}
+	return bytes.Equal(firstMessage, secondMessage)
 
-	for index, val := range firstMessage {
-		if val != secondMessage[index] {
-			return false
-		}
-	}
+	/*
+	   if len(firstMessage) != len(secondMessage) {
+	       return false
+	   }
 
-	return true
+	   for index, val := range firstMessage {
+	       if val != secondMessage[index] {
+	           return false
+	       }
+	   }
+
+	   return true
+	*/
 }
 
 func handleConnection(connection net.Conn, messageQueue [][]byte) {
@@ -81,9 +73,12 @@ func handleConnection(connection net.Conn, messageQueue [][]byte) {
 	buffer := make([]byte, bufferLen)
 
 	for {
-		safeRead(buffer, &connection)
-		message := removeFeedNewline(buffer)
-
+		num := safeRead(buffer, &connection)
+		if isMessageEqual(buffer[:num], []byte("quit")) {
+			finalMessage := "goodbye!"
+			safeWrite(&finalMessage, &connection)
+			return
+		}
 	}
 }
 
