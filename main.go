@@ -55,6 +55,20 @@ func removeFeedNewline(message []byte) []byte {
 	return modified
 }
 
+func isMessageEqual(firstMessage, secondMessage []byte) bool {
+	if len(firstMessage) != len(secondMessage) {
+		return false
+	}
+
+	for index, val := range firstMessage {
+		if val != secondMessage[index] {
+			return false
+		}
+	}
+
+	return true
+}
+
 func handleConnection(connection net.Conn, messageQueue [][]byte) {
 	defer func() {
 		log.Printf("INFO: closing connection to the client IP:Port %s\n", safeRemoteAddress(connection))
@@ -63,6 +77,14 @@ func handleConnection(connection net.Conn, messageQueue [][]byte) {
 
 	initMessage := "connected"
 	safeWrite(&initMessage, &connection)
+
+	buffer := make([]byte, bufferLen)
+
+	for {
+		safeRead(buffer, &connection)
+		message := removeFeedNewline(buffer)
+
+	}
 }
 
 func main() {
