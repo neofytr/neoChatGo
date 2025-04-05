@@ -17,7 +17,6 @@ body {
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
-/* Sidebar styles */
 .sidebar {
   width: 280px;
   background: linear-gradient(135deg, #3498db, #2c3e50);
@@ -117,7 +116,6 @@ body {
   opacity: 0.8;
 }
 
-/* Chat area styles */
 .chat-container {
   flex: 1;
   display: flex;
@@ -229,7 +227,6 @@ body {
   transform: none;
 }
 
-/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
 }

@@ -1,7 +1,7 @@
 {
-  "name": "beautiful-chat-client",
+  "name": "chat-client",
   "version": "1.0.0",
-  "description": "A beautiful chat client",
+  "description": "A chat client",
   "main": "main.js",
   "scripts": {
     "start": "electron ."
