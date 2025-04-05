@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
@@ -74,6 +75,8 @@ func isMessageEqual(firstMessage, secondMessage []byte) bool {
 	*/
 }
 
+var queueMutex sync.RWMutex
+
 func handleConnection(connection net.Conn, messageQueue []message_t) {
 	defer func() {
 		log.Printf("INFO: closing connection to the client IP:Port %s\n", safeRemoteAddress(&connection))
@@ -96,7 +99,11 @@ func handleConnection(connection net.Conn, messageQueue []message_t) {
 			return
 		}
 
+		queueMutex.Lock()
 		messageQueue = append(messageQueue, message_t{sender: name, msg: string(buffer[:num])})
+		queueMutex.Unlock()
+
+		
 	}
 }
 
