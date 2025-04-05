@@ -10,6 +10,7 @@ import (
 
 const serverPort = "6969"
 const safeMode = true
+const readBufferLen = 512
 
 func safeRemoteAddress(connection net.Conn) string {
 	if safeMode {
@@ -19,21 +20,28 @@ func safeRemoteAddress(connection net.Conn) string {
 	}
 }
 
+func safeRead(buffer []byte, connection *net.Conn) {
+
+}
+
+func safeWrite(message *string, connection *net.Conn) {
+	num, err := (*connection).Write([]byte(*message))
+	if err != nil {
+		log.Printf("ERROR: error writing message to the client IP:Port %s\n", safeRemoteAddress(*connection))
+		return
+	}
+	if num < len(*message) { // err will be nil in this case
+		log.Printf("ERROR: couldn't write the entire message to the client IP:Port %s; wrote only %s\n", safeRemoteAddress(*connection), (*message)[:num])
+	}
+}
+
 func handleConnection(connection net.Conn) {
 	defer connection.Close()
 
-	message := "Hi!\nType in your name?\n"
-
-	num, err := connection.Write([]byte(message))
-	if err != nil {
-		log.Printf("ERROR: error writing message to the client IP:Port %s\n", safeRemoteAddress(connection))
-		return
-	}
-
-	if num < len(message) { // err will be nil in this case
-		log.Printf("ERROR: couldn't write the entire message to the client IP:Port %s; wrote only %s\n", safeRemoteAddress(connection), message[:num])
-	}
-
+	message := "Hi!\nPlease type in your name!\n"
+	buffer := make([]byte, readBufferLen)
+	safeWrite(&message, &connection)
+	safeRead(buffer, &connection)
 }
 
 func main() {
