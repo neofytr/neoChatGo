@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -61,7 +62,9 @@ func handleConnection(connection net.Conn) {
 	safeRead(buffer, &connection)
 
 	username := removeFeedNewline(buffer)
-
+	message = fmt.Sprintf("Welcome %s to the chat room!\n", username)
+	safeWrite(&message, &connection)
+	
 }
 
 func main() {
