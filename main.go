@@ -12,6 +12,7 @@ import (
 const serverPort = "6969"
 const safeMode = true
 const bufferLen = 512
+const initQueueLen = 1024
 
 func safeRemoteAddress(connection net.Conn) string {
 	if safeMode {
@@ -53,7 +54,7 @@ func removeFeedNewline(message []byte) []byte {
 	return modified
 }
 
-func handleConnection(connection net.Conn) {
+func handleConnection(connection net.Conn, messageQueue [][]byte) {
 	defer connection.Close()
 
 	message := "Hi!\nPlease type in your name!\n"
@@ -81,9 +82,7 @@ func main() {
 		log.Fatalf("ERROR: tcp connection creation failed on port %s: %s\n", serverPort, err.Error())
 	}
 
-	defer func() {
-
-	}()
+	messageQueue := make([][]byte, initQueueLen)
 
 	log.Printf("INFO: chat server started on port %s\n", serverPort)
 	go func() {
@@ -107,7 +106,7 @@ func main() {
 			log.Printf("INFO: accepted connection from IP:Port -> %s\n", safeRemoteAddress(conn))
 
 			// handle each connection in a new goroutine
-			go handleConnection(conn)
+			go handleConnection(conn, messageQueue)
 		}
 	}()
 
