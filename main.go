@@ -113,7 +113,7 @@ func main() {
 		log.Fatalf("ERROR: tcp connection creation failed on port %s: %s\n", serverPort, err.Error())
 	}
 
-	messageQueue := make([]message_te, initQueueLen)
+	messageQueue := make([]message_t, initQueueLen)
 
 	log.Printf("INFO: chat server started on port %s\n", serverPort)
 	go func() {
