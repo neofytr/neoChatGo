@@ -22,7 +22,7 @@ func safeRemoteAddress(connection net.Conn) string {
 func handleConnection(connection net.Conn) {
 	defer connection.Close()
 
-	message := "hi!\n"
+	message := "Hi!\nType in your name?\n"
 
 	num, err := connection.Write([]byte(message))
 	if err != nil {
@@ -30,7 +30,7 @@ func handleConnection(connection net.Conn) {
 		return
 	}
 
-	if num < len(message) && num > 0 { // err will be nil in this case
+	if num < len(message) { // err will be nil in this case
 		log.Printf("ERROR: couldn't write the entire message to the client IP:Port %s; wrote only %s\n", safeRemoteAddress(connection), message[:num])
 	}
 
