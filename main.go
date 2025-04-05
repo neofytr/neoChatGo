@@ -55,14 +55,14 @@ func readMessage(conn net.Conn) (string, int) {
 	buffer := make([]byte, bufferLen)
 	err := conn.SetReadDeadline(time.Now().Add(readTimeout))
 	if err != nil {
-		log.Printf("error: setting read deadline: %w", err)
+		log.Printf("error: setting read deadline: %s", err.Error())
 		return "", -1
 	}
 
 	n, err := conn.Read(buffer)
 	if err != nil {
 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			log.Printf("error: read timeout: %w", err)
+			log.Printf("error: read timeout: %s", err.Error())
 			return "", -1
 		}
 
