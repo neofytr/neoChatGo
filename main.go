@@ -15,7 +15,7 @@ func safeRemoteAddress(connection net.Conn) string {
 	if safeMode {
 		return "[REDACTED]"
 	} else {
-		return safeRemoteAddress(connection).String()
+		return connection.RemoteAddr().String()
 	}
 }
 
