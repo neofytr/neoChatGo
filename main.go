@@ -15,6 +15,8 @@ const safeMode = true
 const bufferLen = 512
 const initQueueLen = 1024
 
+var queueLatestIndex int = 0
+
 type message_t struct {
 	sender string
 	msg    string
@@ -76,6 +78,26 @@ func isMessageEqual(firstMessage, secondMessage []byte) bool {
 }
 
 var queueMutex sync.RWMutex
+var indexMutex sync.RWMutex
+
+func handleReading(connection *net.Conn, messageQueue []message_t, name string, buffer []byte) {
+	for {
+		num := safeRead(buffer, connection) // returns zero if the client closed connection; otherwise returns the number of bytes read
+		if num == 0 {
+			log.Printf("INFO: client IP:Port %s closed connection\n", safeRemoteAddress(connection))
+			return
+		}
+
+		queueMutex.Lock()
+		messageQueue = append(messageQueue, message_t{sender: name, msg: string(buffer[:num])})
+		indexMutex.Lock()
+		queueLatestIndex++
+		indexMutex.Unlock()
+		queueMutex.Unlock()
+
+	}
+
+}
 
 func handleConnection(connection net.Conn, messageQueue []message_t) {
 	defer func() {
@@ -83,27 +105,29 @@ func handleConnection(connection net.Conn, messageQueue []message_t) {
 		connection.Close()
 	}()
 
+	queueMutex.RLock()
+	userMessageIndex := queueLatestIndex
+	queueMutex.RUnlock()
+
 	buffer := make([]byte, bufferLen)
 	nameLength := safeRead(buffer, &connection)
 	if nameLength == 0 {
 		log.Printf("INFO: client IP:Port %s closed connection\n", safeRemoteAddress(&connection))
 		return
 	}
-
 	name := string(buffer[:nameLength])
 
+	go handleReading(&connection, messageQueue, name, buffer)
+
 	for {
-		num := safeRead(buffer, &connection) // returns zero if the client closed connection; otherwise returns the number of bytes read
-		if num == 0 {
-			log.Printf("INFO: client IP:Port %s closed connection\n", safeRemoteAddress(&connection))
-			return
+		// send all messages that have been received in the chat room since the last send
+		indexMutex.RLock()
+		for ; userMessageIndex <= queueLatestIndex; userMessageIndex++ {
+			str := messageQueue[userMessageIndex].getMessageString()
+			safeWrite(&str, &connection)
 		}
+		indexMutex.RUnlock()
 
-		queueMutex.Lock()
-		messageQueue = append(messageQueue, message_t{sender: name, msg: string(buffer[:num])})
-		queueMutex.Unlock()
-
-		
 	}
 }
 
