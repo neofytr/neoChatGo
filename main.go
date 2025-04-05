@@ -18,10 +18,11 @@ func handleConnection(connection net.Conn) {
 	num, err := connection.Write([]byte(message))
 	if err != nil {
 		log.Printf("ERROR: error writing message to the client IP:Port %s\n", connection.RemoteAddr())
-		if num < len(message) && num > 0 {
-			log.Printf("ERROR: couldn't write the entire message to the client IP:Port %s; wrote only %s\n", connection.RemoteAddr(), message[:num])
-		}
 		return
+	}
+
+	if num < len(message) && num > 0 { // err will be nil in this case
+		log.Printf("ERROR: couldn't write the entire message to the client IP:Port %s; wrote only %s\n", connection.RemoteAddr(), message[:num])
 	}
 
 }
@@ -43,7 +44,7 @@ func main() {
 
 	}()
 
-	log.Printf("INFO: chat Server started on port %s\n", serverPort)
+	log.Printf("INFO: chat server started on port %s\n", serverPort)
 	go func() {
 		for {
 			conn, err := listener.Accept()
