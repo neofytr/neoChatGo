@@ -72,7 +72,7 @@ func main() {
 
 			}
 
-			log.Printf("INFO: accepted connection from IP:Port -> %s\n", conn.RemoteAddr())
+			log.Printf("INFO: accepted connection from IP:Port -> %s\n", safeRemoteAddress(conn))
 
 			// handle each connection in a new goroutine
 			go handleConnection(conn)
