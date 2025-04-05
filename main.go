@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -20,14 +21,19 @@ func safeRemoteAddress(connection net.Conn) string {
 	}
 }
 
-func safeRead(buffer []byte, connection *net.Conn) {
+func safeRead(buffer []byte, connection *net.Conn) int {
+	num, err := (*connection).Read(buffer)
+	if err != nil {
+		log.Printf("ERROR: couldn't read message from the client IP:Port %s\n", safeRemoteAddress(*connection))
+	}
 
+	return num
 }
 
 func safeWrite(message *string, connection *net.Conn) {
 	num, err := (*connection).Write([]byte(*message))
 	if err != nil {
-		log.Printf("ERROR: error writing message to the client IP:Port %s\n", safeRemoteAddress(*connection))
+		log.Printf("ERROR: couldn't write message to the client IP:Port %s\n", safeRemoteAddress(*connection))
 		return
 	}
 	if num < len(*message) { // err will be nil in this case
@@ -42,6 +48,9 @@ func handleConnection(connection net.Conn) {
 	buffer := make([]byte, readBufferLen)
 	safeWrite(&message, &connection)
 	safeRead(buffer, &connection)
+
+	reply := fmt.Sprintf("Your name is %s\n", string(buffer))
+	safeWrite(&reply, &connection)
 }
 
 func main() {
