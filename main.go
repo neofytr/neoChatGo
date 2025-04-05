@@ -70,6 +70,7 @@ func main() {
 	}()
 
 	<-termSignal // wait for the termination signal
+	close(termSignal)
 
 	log.Printf("INFO: chat server received termination signal")
 	log.Printf("INFO: closing the chat server\n")
