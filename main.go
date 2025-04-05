@@ -215,7 +215,7 @@ func handleConnection(conn net.Conn) {
 	name = strings.TrimSpace(name)
 
 	// Validate name
-	if name == "" {
+	/* if name == "" {
 		err := writeMessage(conn, "SERVER: Name cannot be empty")
 		if err != nil {
 			log.Printf("error: couldn't send name validation error: %v", err)
@@ -229,7 +229,7 @@ func handleConnection(conn net.Conn) {
 			log.Printf("error: couldn't send name validation error: %v", err)
 		}
 		return
-	}
+	} */
 
 	// Welcome message directly to this client
 	welcomeMsg := fmt.Sprintf("SERVER: Welcome to the chat, %s!", name)
