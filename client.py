@@ -23,7 +23,5 @@ while True:
     message = clientSocket.recv(1024)
     print(message.decode(encoding="utf-8"), end="")
     
-    reply = input()
-    clientSocket.sendall(reply.encode(encoding="utf-8"))
     
     
