@@ -26,7 +26,6 @@
   --transition-speed: 0.3s;
 }
 
-/* Dark theme variables */
 [data-theme="dark"] {
   --primary: #4ea5e0;
   --primary-dark: #3498db;
@@ -433,7 +432,6 @@ input:checked + .slider:before {
   transform: none;
 }
 
-/* Notification styles */
 .notification {
   position: fixed;
   top: 20px;
@@ -477,7 +475,6 @@ input:checked + .slider:before {
   transform: translateY(-10px);
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
