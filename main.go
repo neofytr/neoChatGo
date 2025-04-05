@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -11,7 +10,7 @@ import (
 
 const serverPort = "6969"
 const safeMode = true
-const readBufferLen = 512
+const bufferLen = 512
 
 func safeRemoteAddress(connection net.Conn) string {
 	if safeMode {
@@ -41,17 +40,28 @@ func safeWrite(message *string, connection *net.Conn) {
 	}
 }
 
+func removeFeedNewline(message []byte) []byte {
+	modified := make([]byte, bufferLen)
+	for index, val := range message {
+		if val == 13 {
+			break
+		}
+		modified[index] = val
+	}
+
+	return modified
+}
+
 func handleConnection(connection net.Conn) {
 	defer connection.Close()
 
 	message := "Hi!\nPlease type in your name!\n"
-	buffer := make([]byte, readBufferLen)
+	buffer := make([]byte, bufferLen)
 	safeWrite(&message, &connection)
 	safeRead(buffer, &connection)
 
-	// buffer would end with \r\n
-	reply := fmt.Sprintf("Your name is %s", string(buffer))
-	safeWrite(&reply, &connection)
+	username := removeFeedNewline(buffer)
+
 }
 
 func main() {
