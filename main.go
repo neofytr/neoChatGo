@@ -37,7 +37,7 @@ func safeRemoteAddress(connection *net.Conn) string {
 func safeRead(buffer []byte, connection *net.Conn) int {
 	num, err := (*connection).Read(buffer)
 	if err != nil && num > 0 {
-		log.Printf("ERROR: couldn't read message from the client IP:Port %s: %s\n", safeRemoteAddress(connection), err.Error())
+		log.Printf("info: couldn't read message from the client IP:Port %s: %s\n", safeRemoteAddress(connection), err.Error())
 	}
 
 	// the closing connection case (num == 0) should be handled by the caller
@@ -47,47 +47,57 @@ func safeRead(buffer []byte, connection *net.Conn) int {
 func safeWrite(message *string, connection *net.Conn) {
 	_, err := (*connection).Write([]byte(*message + "\n"))
 	if err != nil {
-		log.Printf("ERROR: couldn't write message to the client IP:Port %s: %s\n", safeRemoteAddress(connection), err.Error())
+		log.Printf("info: couldn't write message to the client IP:Port %s: %s\n", safeRemoteAddress(connection), err.Error())
 	}
 }
 
 var messageQueue []message_t
 var queueMutex sync.RWMutex
 
-func handleReading(connection *net.Conn, name string, shutdown chan bool, clientDisconnected chan bool) {
+func handleReading(connection *net.Conn, name string, shutdown <-chan bool, clientDisconnected chan<- bool) {
 	buffer := make([]byte, bufferLen)
 
 	for {
-
 		select {
-		case <-clientDisconnected:
+		case <-shutdown:
 			return
 		default:
 			num := safeRead(buffer, connection)
+
 			if num == 0 {
-				// check if this is due to timeout or actual connection close
 				// connection is closed
-				log.Printf("INFO: client IP:Port %s closed connection\n", safeRemoteAddress(connection))
-				close(clientDisconnected)
+				log.Printf("info: client IP:Port %s closed connection\n", safeRemoteAddress(connection))
+
+				// safely notify about client disconnection
+				select {
+				case clientDisconnected <- true:
+					// message sent successfully
+				default:
+					// channel might be closed or full, don't panic
+				}
 				return
 			}
 
-			message := string(buffer[:num])
+			if num > 0 { // only process if we actually read data
+				message := string(buffer[:num])
 
-			queueMutex.Lock()
-			messageQueue = append(messageQueue, message_t{sender: name, msg: message})
-			queueLatestIndex++
-			queueMutex.Unlock()
+				queueMutex.Lock()
+				messageQueue = append(messageQueue, message_t{sender: name, msg: message})
+				queueLatestIndex++
+				queueMutex.Unlock()
+			}
 		}
 	}
 }
 
-func handleWriting(connection *net.Conn, userMessageIndex *int, shutdown chan bool, clientDisconnected chan bool) {
+func handleWriting(connection *net.Conn, userMessageIndex *int, shutdown <-chan bool, clientDisconnected <-chan bool) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
+		case <-shutdown:
+			return
 		case <-clientDisconnected:
 			return
 		case <-ticker.C:
@@ -106,15 +116,13 @@ func handleWriting(connection *net.Conn, userMessageIndex *int, shutdown chan bo
 	}
 }
 
-func handleConnection(connection net.Conn, serverShutdown chan bool) {
-
-	// create a channel for this connection's shutdown signal
-	clientShutdown := make(chan bool)
-
-	// create a channel for client disconnection
-	clientDisconnected := make(chan bool)
+func handleConnection(connection net.Conn, serverShutdown <-chan bool) {
+	// create a buffered channel for client disconnection
+	clientDisconnected := make(chan bool, 2) // buffered to prevent blocking
 
 	defer func() {
+		log.Printf("info: closing connection to the client IP:Port %s\n", safeRemoteAddress(&connection))
+		connection.Close()
 	}()
 
 	userMessageIndex := 0
@@ -123,7 +131,7 @@ func handleConnection(connection net.Conn, serverShutdown chan bool) {
 	buffer := make([]byte, bufferLen)
 	nameLength := safeRead(buffer, &connection)
 	if nameLength == 0 {
-		log.Printf("INFO: client IP:Port %s closed connection before sending name\n", safeRemoteAddress(&connection))
+		log.Printf("info: client IP:Port %s closed connection before sending name\n", safeRemoteAddress(&connection))
 		return
 	}
 	name := string(buffer[:nameLength])
@@ -137,30 +145,29 @@ func handleConnection(connection net.Conn, serverShutdown chan bool) {
 	queueMutex.Unlock()
 
 	// start reading and writing in separate goroutines
-	go handleReading(&connection, name, clientShutdown, clientDisconnected)
-	go handleWriting(&connection, &userMessageIndex, clientShutdown, clientDisconnected)
+	go handleReading(&connection, name, serverShutdown, clientDisconnected)
+	go handleWriting(&connection, &userMessageIndex, serverShutdown, clientDisconnected)
 
-	for {
-		select {
-		case <-serverShutdown:
-			{
-				close(clientDisconnected) // signal the client handlers to exit
-				goodbye := "SERVER: Server is shutting down. Goodbye!"
-				safeWrite(&goodbye, &connection)
+	// wait for server shutdown or client disconnection
+	select {
+	case <-serverShutdown:
+		goodbye := "SERVER: Server is shutting down. Goodbye!"
+		safeWrite(&goodbye, &connection)
 
-				time.Sleep(100 * time.Millisecond) // allow the message to be sent
-				return
-			}
-		case <-clientDisconnected:
-			{
-				goodbye := "SERVER: Server is shutting down. Goodbye!"
-				safeWrite(&goodbye, &connection)
+		// allow the message to be sent
+		time.Sleep(100 * time.Millisecond)
+	case <-clientDisconnected:
+		// client disconnected, add a leave message
+		leaveMessage := message_t{sender: "SERVER", msg: name + " has left the chat"}
 
-				time.Sleep(100 * time.Millisecond) // allow the message to be sent
-				return
-			}
-		}
+		queueMutex.Lock()
+		messageQueue = append(messageQueue, leaveMessage)
+		queueLatestIndex++
+		queueMutex.Unlock()
 	}
+
+	// Give goroutines time to exit naturally before the connection closes
+	time.Sleep(200 * time.Millisecond)
 }
 
 func main() {
@@ -173,29 +180,25 @@ func main() {
 
 	listener, err := net.Listen("tcp", ":"+serverPort)
 	if err != nil {
-		log.Fatalf("ERROR: tcp connection creation failed on port %s: %s\n", serverPort, err.Error())
+		log.Fatalf("error: tcp connection creation failed on port %s: %s\n", serverPort, err.Error())
 	}
 	defer listener.Close()
 
 	// initialize message queue
 	messageQueue = make([]message_t, 0, initQueueLen)
 
-	log.Printf("INFO: chat server started on port %s\n", serverPort)
+	log.Printf("info: chat server started on port %s\n", serverPort)
 
 	// connection acceptor goroutine
-	var wg sync.WaitGroup
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
 		for {
-			// set accept deadline to prevent blocking forever
+			// non-blocking accept with timeout to check for shutdown
 			listener.(*net.TCPListener).SetDeadline(time.Now().Add(1 * time.Second))
-
 			conn, err := listener.Accept()
+
 			if err != nil {
-				// check if this is due to timeout or an actual error
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					// it's a timeout, check if we need to exit
+				if os.IsTimeout(err) {
+					// check if server is shutting down
 					select {
 					case <-serverShutdown:
 						return
@@ -204,17 +207,11 @@ func main() {
 					}
 				}
 
-				// it's another error
-				select {
-				case <-serverShutdown:
-					return
-				default:
-					log.Printf("ERROR: couldn't accept a connection: %s", err.Error())
-					continue
-				}
+				log.Printf("info: couldn't accept a connection: %s", err.Error())
+				continue
 			}
 
-			log.Printf("INFO: accepted connection from IP:Port -> %s\n", safeRemoteAddress(&conn))
+			log.Printf("info: accepted connection from IP:Port -> %s\n", safeRemoteAddress(&conn))
 
 			// handle each connection in a new goroutine
 			go handleConnection(conn, serverShutdown)
@@ -223,17 +220,14 @@ func main() {
 
 	// wait for termination signal
 	<-termSignal
-	close(termSignal)
-	log.Printf("INFO: chat server received termination signal")
+	log.Printf("info: chat server received termination signal")
 
 	// initiate graceful shutdown
-	log.Printf("INFO: starting graceful shutdown")
+	log.Printf("info: starting graceful shutdown")
 	close(serverShutdown)
 
-	closeAllConnections()
+	// give connections time to close gracefully
+	time.Sleep(1 * time.Second)
 
-	// wait for acceptor goroutine to finish
-	wg.Wait()
-
-	log.Printf("INFO: chat server shutdown complete\n")
+	log.Printf("info: chat server shutdown complete\n")
 }
