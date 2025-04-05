@@ -61,10 +61,11 @@ func handleConnection(connection net.Conn) {
 	safeWrite(&message, &connection)
 	safeRead(buffer, &connection)
 
+	// buffer will contain \r\n at the end; so we remove it
 	username := removeFeedNewline(buffer)
 	message = fmt.Sprintf("Welcome %s to the chat room!\n", username)
 	safeWrite(&message, &connection)
-	
+
 }
 
 func main() {
