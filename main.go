@@ -14,6 +14,15 @@ const safeMode = true
 const bufferLen = 512
 const initQueueLen = 1024
 
+type message_t struct {
+	sender string
+	msg    string
+}
+
+func (message message_t) getMessageString() string {
+	return message.sender + ": " + message.msg
+}
+
 func safeRemoteAddress(connection *net.Conn) string {
 	if safeMode {
 		return "[REDACTED]"
