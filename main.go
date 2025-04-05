@@ -215,6 +215,7 @@ func handleConnection(conn net.Conn) {
 	name = strings.TrimSpace(name)
 
 	// Validate name
+	// name validation is taken care of in the client itself
 	/* if name == "" {
 		err := writeMessage(conn, "SERVER: Name cannot be empty")
 		if err != nil {
