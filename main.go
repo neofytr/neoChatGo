@@ -49,7 +49,8 @@ func handleConnection(connection net.Conn) {
 	safeWrite(&message, &connection)
 	safeRead(buffer, &connection)
 
-	reply := fmt.Sprintf("Your name is %s\n", string(buffer))
+	// buffer would end with \r\n
+	reply := fmt.Sprintf("Your name is %s", string(buffer))
 	safeWrite(&reply, &connection)
 }
 
