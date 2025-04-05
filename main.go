@@ -54,50 +54,49 @@ func safeWrite(message *string, connection *net.Conn) {
 var messageQueue []message_t
 var queueMutex sync.RWMutex
 
-func handleReading(connection *net.Conn, name string, shutdown <-chan bool, clientDisconnected chan<- bool) {
+func handleReading(connection *net.Conn, name string, clientDisconnected chan bool) {
 	buffer := make([]byte, bufferLen)
 
 	for {
-		select {
-		case <-shutdown:
-			return
-		default:
-			num := safeRead(buffer, connection)
 
-			if num == 0 {
-				// connection is closed
+		num := safeRead(buffer, connection)
+		if num == 0 {
+
+			// there are two possibilities; either the client has closed the connection
+			// or the server has shutdown closing the connection making num be 0
+
+			// if the server has shutdown, clientDisconnected is closed
+
+			select {
+			case <-clientDisconnected: // channel is closed; this is possible only if the server has shutdown
+			// simply return in this case
+
+			default:
+				// channel is open; client disconnected
+				// close the channel and return
 				log.Printf("info: client IP:Port %s closed connection\n", safeRemoteAddress(connection))
-
-				// safely notify about client disconnection
-				select {
-				case clientDisconnected <- true:
-					// message sent successfully
-				default:
-					// channel might be closed or full, don't panic
-				}
-				return
+				close(clientDisconnected)
 			}
+			return
+		}
 
-			if num > 0 { // only process if we actually read data
-				message := string(buffer[:num])
+		if num > 0 { // only process if we actually read data
+			message := string(buffer[:num])
 
-				queueMutex.Lock()
-				messageQueue = append(messageQueue, message_t{sender: name, msg: message})
-				queueLatestIndex++
-				queueMutex.Unlock()
-			}
+			queueMutex.Lock()
+			messageQueue = append(messageQueue, message_t{sender: name, msg: message})
+			queueLatestIndex++
+			queueMutex.Unlock()
 		}
 	}
 }
 
-func handleWriting(connection *net.Conn, userMessageIndex *int, shutdown <-chan bool, clientDisconnected <-chan bool) {
+func handleWriting(connection *net.Conn, userMessageIndex *int, clientDisconnected chan bool) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-shutdown:
-			return
 		case <-clientDisconnected:
 			return
 		case <-ticker.C:
@@ -117,11 +116,11 @@ func handleWriting(connection *net.Conn, userMessageIndex *int, shutdown <-chan 
 }
 
 func handleConnection(connection net.Conn, serverShutdown <-chan bool) {
-	// create a buffered channel for client disconnection
-	clientDisconnected := make(chan bool, 2) // buffered to prevent blocking
+	clientDisconnected := make(chan bool)
 
 	defer func() {
 		log.Printf("info: closing connection to the client IP:Port %s\n", safeRemoteAddress(&connection))
+		// finally close the connection
 		connection.Close()
 	}()
 
@@ -145,13 +144,14 @@ func handleConnection(connection net.Conn, serverShutdown <-chan bool) {
 	queueMutex.Unlock()
 
 	// start reading and writing in separate goroutines
-	go handleReading(&connection, name, serverShutdown, clientDisconnected)
-	go handleWriting(&connection, &userMessageIndex, serverShutdown, clientDisconnected)
+	go handleReading(&connection, name, clientDisconnected)
+	go handleWriting(&connection, &userMessageIndex, clientDisconnected)
 
 	// wait for server shutdown or client disconnection
 	select {
 	case <-serverShutdown:
 		goodbye := "SERVER: Server is shutting down. Goodbye!"
+		close(clientDisconnected)
 		safeWrite(&goodbye, &connection)
 
 		// allow the message to be sent
