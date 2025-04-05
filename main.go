@@ -14,19 +14,23 @@ const safeMode = true
 const bufferLen = 512
 const initQueueLen = 1024
 
-func safeRemoteAddress(connection net.Conn) string {
+func safeRemoteAddress(connection *net.Conn) string {
 	if safeMode {
 		return "[REDACTED]"
 	} else {
-		return connection.RemoteAddr().String()
+		return (*connection).RemoteAddr().String()
 	}
 }
 
 func safeRead(buffer []byte, connection *net.Conn) int {
 	num, err := (*connection).Read(buffer)
-	if err != nil {
-		log.Printf("ERROR: couldn't read message from the client IP:Port %s\n", safeRemoteAddress(*connection))
+	if err != nil && num != 0 {
+		log.Printf("ERROR: couldn't read message from the client IP:Port %s: %s\n", safeRemoteAddress(connection), err.Error())
 	}
+
+	// it is an error if the client closes connection while we wait for reading
+	// num is simply zero in that case
+	// we handle the connection closing outside this function
 
 	// it is guaranteed that all the messages we receive (even if typed into the terminal) from the client does not have any feed or newline characters at its ends
 	return num
@@ -35,11 +39,11 @@ func safeRead(buffer []byte, connection *net.Conn) int {
 func safeWrite(message *string, connection *net.Conn) {
 	num, err := (*connection).Write([]byte(*message))
 	if err != nil {
-		log.Printf("ERROR: couldn't write message to the client IP:Port %s\n", safeRemoteAddress(*connection))
+		log.Printf("ERROR: couldn't write message to the client IP:Port %s: %s\n", safeRemoteAddress(connection), err.Error())
 		return
 	}
 	if num < len(*message) { // err will be nil in this case
-		log.Printf("ERROR: couldn't write the entire message to the client IP:Port %s; wrote only %s\n", safeRemoteAddress(*connection), (*message)[:num])
+		log.Printf("ERROR: couldn't write the entire message to the client IP:Port %s; wrote only %s\n", safeRemoteAddress(connection), (*message)[:num])
 	}
 }
 
@@ -63,20 +67,16 @@ func isMessageEqual(firstMessage, secondMessage []byte) bool {
 
 func handleConnection(connection net.Conn, messageQueue [][]byte) {
 	defer func() {
-		log.Printf("INFO: closing connection to the client IP:Port %s\n", safeRemoteAddress(connection))
+		log.Printf("INFO: closing connection to the client IP:Port %s\n", safeRemoteAddress(&connection))
 		connection.Close()
 	}()
-
-	initMessage := "connected"
-	safeWrite(&initMessage, &connection)
 
 	buffer := make([]byte, bufferLen)
 
 	for {
-		num := safeRead(buffer, &connection)
-		if isMessageEqual(buffer[:num], []byte("quit")) {
-			finalMessage := "goodbye!"
-			safeWrite(&finalMessage, &connection)
+		num := safeRead(buffer, &connection) // returns zero if the client closed connection; otherwise returns the number of bytes read
+		if num == 0 {
+			log.Printf("INFO: client IP:Port %s closed connection\n", safeRemoteAddress(&connection))
 			return
 		}
 	}
@@ -116,7 +116,7 @@ func main() {
 
 			}
 
-			log.Printf("INFO: accepted connection from IP:Port -> %s\n", safeRemoteAddress(conn))
+			log.Printf("INFO: accepted connection from IP:Port -> %s\n", safeRemoteAddress(&conn))
 
 			// handle each connection in a new goroutine
 			go handleConnection(conn, messageQueue)
